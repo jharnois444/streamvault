@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamVault — Microservice Cost Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #E50914;
+    --red-dim: #C1060F;
+    --bg: #0a0a0a;
+    --bg2: #111111;
+    --bg3: #1a1a1a;
+    --bg4: #222222;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f0f0;
+    --text2: #999;
+    --text3: #666;
+    --green: #2ecc71;
+    --yellow: #f1c40f;
+    --orange: #e67e22;
+    --blue: #3498db;
+    --purple: #9b59b6;
+    --teal: #1abc9c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* NAV */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 56px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; }
+  .nav-logo {
+    width: 28px; height: 28px;
+    background: var(--red);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .nav-title { font-size: 15px; font-weight: 500; letter-spacing: -0.3px; }
+  .nav-subtitle { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+  .nav-right { display: flex; align-items: center; gap: 1.5rem; }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--green);
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .nav-time { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--text3); }
+
+  /* LAYOUT */
+  .layout { display: flex; height: calc(100vh - 56px); overflow: hidden; }
+  .sidebar {
+    width: 220px; flex-shrink: 0;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 1rem 0;
+  }
+  .sidebar-section { padding: 0 1rem; margin-bottom: 1.5rem; }
+  .sidebar-label {
+    font-size: 10px; font-weight: 500; letter-spacing: 1px;
+    color: var(--text3); text-transform: uppercase;
+    margin-bottom: 0.5rem; padding: 0 0.25rem;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.45rem 0.5rem; border-radius: 6px;
+    cursor: pointer; transition: background 0.15s;
+    font-size: 13px; color: var(--text2);
+    margin-bottom: 2px;
+  }
+  .sidebar-item:hover { background: var(--bg3); color: var(--text); }
+  .sidebar-item.active { background: rgba(229,9,20,0.12); color: var(--red); }
+  .sidebar-item-left { display: flex; align-items: center; gap: 8px; }
+  .svc-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .badge {
+    font-size: 10px; font-family: 'JetBrains Mono', monospace;
+    background: var(--bg4); padding: 1px 6px; border-radius: 3px;
+    color: var(--text3);
+  }
+  .badge.warn { background: rgba(241,196,15,0.15); color: var(--yellow); }
+  .badge.danger { background: rgba(229,9,20,0.15); color: #ff6b6b; }
+  .badge.ok { background: rgba(46,204,113,0.12); color: var(--green); }
+
+  /* MAIN */
+  .main { flex: 1; overflow-y: auto; padding: 1.5rem; background: var(--bg); }
+
+  /* HEADER ROW */
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h1 { font-size: 20px; font-weight: 500; letter-spacing: -0.5px; margin-bottom: 4px; }
+  .page-header p { font-size: 12px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+  .page-controls { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+  .ctrl-btn {
+    padding: 5px 14px; border-radius: 5px; font-size: 12px;
+    border: 1px solid var(--border2); background: var(--bg3);
+    color: var(--text2); cursor: pointer; transition: all 0.15s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .ctrl-btn:hover { background: var(--bg4); color: var(--text); }
+  .ctrl-btn.active { border-color: var(--red); color: var(--red); background: rgba(229,9,20,0.08); }
+
+  /* STAT CARDS */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+  .stat-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.1rem 1.2rem;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .stat-card.red::before { background: var(--red); }
+  .stat-card.green::before { background: var(--green); }
+  .stat-card.yellow::before { background: var(--yellow); }
+  .stat-card.blue::before { background: var(--blue); }
+  .stat-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 26px; font-weight: 300; letter-spacing: -1px; margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; }
+  .stat-meta { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+  .stat-delta { font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .delta-up { color: #ff6b6b; }
+  .delta-down { color: var(--green); }
+
+  /* GRID PANELS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .panel {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.2rem;
+  }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .panel-title { font-size: 13px; font-weight: 500; }
+  .panel-sub { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+  /* SERVICE TABLE */
+  .svc-table { width: 100%; border-collapse: collapse; }
+  .svc-table th {
+    font-size: 10px; color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 500;
+    text-align: left; padding: 0 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .svc-table th:not(:first-child) { text-align: right; }
+  .svc-table td {
+    padding: 0.55rem 0.5rem; font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .svc-table td:not(:first-child) { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .svc-table tr:last-child td { border-bottom: none; }
+  .svc-table tr:hover td { background: var(--bg3); }
+  .svc-name { display: flex; align-items: center; gap: 8px; }
+  .svc-name span { color: var(--text2); }
+  .health-bar { width: 60px; height: 4px; background: var(--bg4); border-radius: 2px; display: inline-block; position: relative; vertical-align: middle; }
+  .health-bar-fill { height: 100%; border-radius: 2px; }
+  .cost-spark { width: 60px; height: 24px; display: inline-block; vertical-align: middle; }
+
+  /* ANOMALY FEED */
+  .anomaly-feed { max-height: 280px; overflow-y: auto; }
+  .anomaly-item {
+    display: flex; gap: 10px; padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .anomaly-item:last-child { border-bottom: none; }
+  .anomaly-icon {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+  .anomaly-icon.warn { background: rgba(241,196,15,0.15); color: var(--yellow); }
+  .anomaly-icon.danger { background: rgba(229,9,20,0.15); color: #ff6b6b; }
+  .anomaly-icon.info { background: rgba(52,152,219,0.15); color: var(--blue); }
+  .anomaly-icon.ok { background: rgba(46,204,113,0.12); color: var(--green); }
+  .anomaly-msg { flex: 1; }
+  .anomaly-msg strong { color: var(--text); display: block; margin-bottom: 2px; }
+  .anomaly-msg span { color: var(--text3); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* CIRCUIT BREAKER */
+  .cb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .cb-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.7rem;
+  }
+  .cb-name { font-size: 11px; color: var(--text2); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cb-state { font-size: 12px; font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+  .cb-state.closed { color: var(--green); }
+  .cb-state.open { color: #ff6b6b; }
+  .cb-state.half { color: var(--yellow); }
+  .cb-rate { font-size: 10px; color: var(--text3); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+
+  /* OPTIMIZATION RECOMMENDATIONS */
+  .reco-list { display: flex; flex-direction: column; gap: 0.6rem; }
+  .reco-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.75rem;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .reco-item:hover { border-color: var(--border2); }
+  .reco-item.high { border-left: 3px solid var(--red); }
+  .reco-item.med { border-left: 3px solid var(--yellow); }
+  .reco-item.low { border-left: 3px solid var(--blue); }
+  .reco-savings {
+    font-size: 13px; font-weight: 500; font-family: 'JetBrains Mono', monospace;
+    color: var(--green); white-space: nowrap;
+  }
+  .reco-content { flex: 1; }
+  .reco-title { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+  .reco-desc { font-size: 11px; color: var(--text3); line-height: 1.4; }
+
+  /* KAFKA TOPOLOGY */
+  .kafka-flow { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 0.5rem 0; }
+  .kf-node {
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 0.5rem 0.75rem;
+    font-size: 11px; text-align: center; flex-shrink: 0;
+    min-width: 90px;
+  }
+  .kf-node-label { color: var(--text3); font-size: 10px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kf-node-name { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text); }
+  .kf-node-rate { font-size: 10px; color: var(--teal); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+  .kf-arrow {
+    color: var(--text3); font-size: 16px; padding: 0 4px; flex-shrink: 0;
+  }
+
+  /* TOPOLOGY MAP */
+  #topoCanvas { width: 100%; height: 220px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.2rem; }
+  .tab {
+    padding: 0.5rem 1rem; font-size: 12px; color: var(--text3);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.15s; font-family: 'JetBrains Mono', monospace;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text2); }
+  .tab.active { color: var(--text); border-bottom-color: var(--red); }
+
+  /* UNIT ECONOMICS */
+  .ue-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+  .ue-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.8rem;
+  }
+  .ue-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .ue-value { font-size: 18px; font-family: 'JetBrains Mono', monospace; font-weight: 400; }
+  .ue-sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
+
+  /* FORECAST */
+  .forecast-bar { height: 6px; background: var(--bg4); border-radius: 3px; margin: 4px 0; overflow: hidden; }
+  .forecast-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+  /* BLINKING CURSOR EFFECT on live numbers */
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .loading-overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 9999; transition: opacity 0.5s;
+  }
+  .loading-logo {
+    width: 60px; height: 60px; background: var(--red);
+    border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; font-size: 22px; font-weight: 600;
+    color: #fff; margin-bottom: 1.5rem;
+  }
+  .loading-bar { width: 200px; height: 2px; background: var(--bg3); border-radius: 1px; overflow: hidden; }
+  .loading-bar-fill { height: 100%; background: var(--red); border-radius: 1px; animation: loadBar 1.8s ease-in-out forwards; }
+  @keyframes loadBar { from { width: 0; } to { width: 100%; } }
+  .loading-msg { font-size: 12px; color: var(--text3); margin-top: 1rem; font-family: 'JetBrains Mono', monospace; }
+
+  .fade-in { animation: fadeIn 0.4s ease forwards; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .tooltip-wrap { position: relative; }
+  .tooltip-box {
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--bg4); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 6px 10px; font-size: 11px;
+    white-space: nowrap; color: var(--text); z-index: 10;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tooltip-wrap:hover .tooltip-box { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loading-overlay" id="loadOverlay">
+  <div class="loading-logo">SV</div>
+  <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+  <div class="loading-msg" id="loadMsg">initializing event streams...</div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">SV</div>
+    <div>
+      <div class="nav-title">StreamVault</div>
+      <div class="nav-subtitle">microservice cost intelligence</div>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span>LIVE</span>
+    </div>
+    <div class="nav-time" id="navTime">--:--:--</div>
+  </div>
+</nav>
+
+<!-- LAYOUT -->
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Services</div>
+      <div id="sidebarSvcs"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Views</div>
+      <div class="sidebar-item active" onclick="switchView('overview')">
+        <div class="sidebar-item-left"><span>Overview</span></div>
+      </div>
+      <div class="sidebar-item" onclick="switchView('topology')">
+        <div class="sidebar-item-left"><span>Topology</span></div>
+      </div>
+      <div class="sidebar-item" onclick="switchView('kafka')">
+        <div class="sidebar-item-left"><span>Event Streams</span></div>
+      </div>
+      <div class="sidebar-item" onclick="switchView('optimize')">
+        <div class="sidebar-item-left"><span>Optimizer</span></div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Cluster</div>
+      <div style="font-size:11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; padding: 0 0.25rem; line-height: 1.8;">
+        <div>Region: <span style="color:var(--text2)">us-east-1</span></div>
+        <div>Nodes: <span style="color:var(--text2)" id="nodeCount">—</span></div>
+        <div>Kafka: <span style="color:var(--green)">healthy</span></div>
+        <div>Cassandra: <span style="color:var(--green)">healthy</span></div>
+        <div>EVCache: <span style="color:var(--green)">healthy</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main" id="mainContent">
+    <!-- injected by JS -->
+  </div>
+</div>
+
+<script>
+// ─── DATA MODEL ───────────────────────────────────────────────────────────────
+const SERVICES = [
+  { id:'api-gateway',      name:'api-gateway',      color:'#E50914', cost:4820, baseline:4200, p99:42,  rps:98400,  err:0.02, instances:24, cpu:61, mem:54, circuitBreaker:'CLOSED', kafka:['member-events','playback-events'] },
+  { id:'playback-svc',     name:'playback-svc',      color:'#3498db', cost:8940, baseline:7200, p99:18,  rps:210000, err:0.01, instances:48, cpu:72, mem:68, circuitBreaker:'CLOSED', kafka:['playback-events','cdn-events'] },
+  { id:'recommendation',   name:'recommendation',    color:'#9b59b6', cost:12300,baseline:9800, p99:95,  rps:45000,  err:0.04, instances:32, cpu:88, mem:79, circuitBreaker:'HALF',   kafka:['member-events','ab-test-events'] },
+  { id:'member-svc',       name:'member-svc',         color:'#1abc9c', cost:2140, baseline:2000, p99:12,  rps:32000,  err:0.00, instances:12, cpu:34, mem:42, circuitBreaker:'CLOSED', kafka:['member-events'] },
+  { id:'billing-svc',      name:'billing-svc',        color:'#f1c40f', cost:1820, baseline:1750, p99:28,  rps:8400,   err:0.00, instances:8,  cpu:29, mem:35, circuitBreaker:'CLOSED', kafka:['billing-events'] },
+  { id:'search-svc',       name:'search-svc',         color:'#e67e22', cost:3600, baseline:2900, p99:55,  rps:67000,  err:0.08, instances:20, cpu:77, mem:63, circuitBreaker:'OPEN',   kafka:['search-events','member-events'] },
+  { id:'encoder-svc',      name:'encoder-svc',        color:'#e74c3c', cost:18700,baseline:14000,p99:340, rps:1200,   err:0.00, instances:64, cpu:94, mem:88, circuitBreaker:'CLOSED', kafka:['encoding-events','cdn-events'] },
+  { id:'notification-svc', name:'notification-svc',  color:'#2ecc71', cost:980,  baseline:900,  p99:22,  rps:12000,  err:0.01, instances:6,  cpu:18, mem:24, circuitBreaker:'CLOSED', kafka:['member-events','push-events'] },
+  { id:'drm-svc',          name:'drm-svc',            color:'#34495e', cost:2200, baseline:2100, p99:8,   rps:95000,  err:0.00, instances:16, cpu:41, mem:46, circuitBreaker:'CLOSED', kafka:['playback-events'] },
+  { id:'analytics-svc',    name:'analytics-svc',      color:'#fd79a8', cost:5400, baseline:4200, p99:120, rps:340000, err:0.02, instances:28, cpu:69, mem:71, circuitBreaker:'CLOSED', kafka:['member-events','ab-test-events','encoding-events'] },
+];
+
+const KAFKA_TOPICS = [
+  { name:'member-events',    tps:420000, lag:12,   partitions:256 },
+  { name:'playback-events',  tps:1200000,lag:4,    partitions:512 },
+  { name:'encoding-events',  tps:8400,   lag:340,  partitions:64  },
+  { name:'cdn-events',       tps:680000, lag:8,    partitions:256 },
+  { name:'billing-events',   tps:42000,  lag:2,    partitions:128 },
+  { name:'search-events',    tps:94000,  lag:890,  partitions:128 },
+  { name:'ab-test-events',   tps:240000, lag:18,   partitions:128 },
+  { name:'push-events',      tps:38000,  lag:6,    partitions:64  },
+];
+
+const RECOMMENDATIONS = [
+  { priority:'high', savings:3200, title:'encoder-svc: right-size EC2 fleet', desc:'94% CPU utilization on 64 c5.4xlarge instances suggests Graviton3 migration (c7g.4xlarge). Estimated 28% compute cost reduction at identical throughput.' },
+  { priority:'high', savings:2100, title:'recommendation: resolve memory pressure', desc:'P99 at 95ms and 88% circuit breaker failure rate. EVCache hit ratio dropped to 61% — cold-start storm. Warming strategy + instance count +4 resolves within SLO.' },
+  { priority:'med',  savings:1400, title:'search-svc: open circuit breaker recovery', desc:'Consumer lag 890ms on search-events topic causing backpressure. Recommended: add 4 consumers + increase fetch.min.bytes to 64KB to reduce round-trips.' },
+  { priority:'med',  savings:820,  title:'analytics-svc: Iceberg table compaction', desc:'Small file problem on member-events Iceberg tables — 12,400 files averaging 2.3MB. Compaction job reducing to 128MB targets will cut S3 scan costs ~34%.' },
+  { priority:'low',  savings:340,  title:'api-gateway: enable response compression', desc:'gzip/brotli on JSON responses not configured. Estimated 40% bandwidth reduction on 98K RPS → $340/mo CDN egress savings.' },
+  { priority:'low',  savings:180,  title:'billing-svc: Reserved Instance coverage', desc:'billing-svc runs on 8 on-demand m5.xlarge. 1-year Reserved Instance commitment saves 38% at stable, low-variance workload pattern.' },
+];
+
+const ANOMALIES_INITIAL = [
+  { type:'danger', icon:'!', msg:'encoder-svc cost spike +34%', sub:'vs 30-day baseline · aws/ec2 · 14 min ago', time: Date.now()-840000 },
+  { type:'danger', icon:'!', msg:'search-svc circuit breaker OPEN', sub:'failure rate 8.2% > 5% threshold · 22 min ago', time: Date.now()-1320000 },
+  { type:'warn',   icon:'~', msg:'recommendation CPU > 85% (88%)', sub:'SLO warning threshold crossed · 31 min ago', time: Date.now()-1860000 },
+  { type:'warn',   icon:'~', msg:'encoding-events consumer lag 340ms', sub:'kafka partition 47/64 · 38 min ago', time: Date.now()-2280000 },
+  { type:'info',   icon:'i', msg:'analytics-svc Iceberg compaction queued', sub:'1.2TB across 12,400 files · 52 min ago', time: Date.now()-3120000 },
+  { type:'ok',     icon:'✓', msg:'billing-svc P99 nominal (28ms)', sub:'SLO compliant — 30d streak', time: Date.now()-86400000 },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentView = 'overview';
+let timeRange = '1h';
+let tick = 0;
+let anomalies = [...ANOMALIES_INITIAL];
+let costHistory = {};
+SERVICES.forEach(s => { costHistory[s.id] = Array.from({length:60}, (_,i) => s.cost * (0.85 + Math.random()*0.3)); });
+
+// ─── RUNTIME DATA SIMULATION ─────────────────────────────────────────────────
+function jitter(val, pct=0.03) { return val * (1 + (Math.random()*2-1)*pct); }
+
+function tickData() {
+  tick++;
+  SERVICES.forEach(s => {
+    s.rps = Math.max(0, jitter(s.rps, 0.04));
+    s.cpu = Math.min(100, Math.max(5, jitter(s.cpu, 0.05)));
+    s.mem = Math.min(100, Math.max(5, jitter(s.mem, 0.02)));
+    s.cost = Math.max(0, jitter(s.cost, 0.01));
+    s.p99 = Math.max(1, jitter(s.p99, 0.08));
+    s.err = Math.max(0, jitter(s.err, 0.1));
+    costHistory[s.id].push(s.cost);
+    if(costHistory[s.id].length > 60) costHistory[s.id].shift();
+  });
+  KAFKA_TOPICS.forEach(t => { t.tps = Math.max(0, jitter(t.tps, 0.05)); t.lag = Math.max(0, jitter(t.lag, 0.08)); });
+}
+
+// ─── UTILITY ──────────────────────────────────────────────────────────────────
+function fmt$(n) { return '$'+(n>=1000 ? (n/1000).toFixed(1)+'K' : Math.round(n)); }
+function fmtN(n) { return n>=1000000?(n/1000000).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':Math.round(n); }
+function fmtPct(n) { return n.toFixed(1)+'%'; }
+function fmtMs(n) { return Math.round(n)+'ms'; }
+function colorForCpu(c) { return c>85?'#ff6b6b':c>65?'#f1c40f':'#2ecc71'; }
+function totalCost() { return SERVICES.reduce((a,s)=>a+s.cost,0); }
+function totalRps() { return SERVICES.reduce((a,s)=>a+s.rps,0); }
+function totalInstances() { return SERVICES.reduce((a,s)=>a+s.instances,0); }
+function projMonthly() { return totalCost()*24*30; }
+
+// ─── SPARKLINE ────────────────────────────────────────────────────────────────
+function sparkSVG(data, color, w=60, h=24) {
+  const mn = Math.min(...data), mx = Math.max(...data);
+  const range = mx-mn || 1;
+  const pts = data.map((v,i) => `${(i/(data.length-1))*w},${h-((v-mn)/range)*(h-2)-1}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ─── VIEWS ────────────────────────────────────────────────────────────────────
+function renderOverview() {
+  const tc = totalCost();
+  const monthly = projMonthly();
+  const baselineMonthly = SERVICES.reduce((a,s)=>a+s.baseline,0)*24*30;
+  const drift = ((monthly-baselineMonthly)/baselineMonthly*100);
+  const avgErr = SERVICES.reduce((a,s)=>a+s.err,0)/SERVICES.length*100;
+
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h1>Cost Intelligence — Overview</h1>
+      <p>us-east-1 · ${SERVICES.length} services · ${totalInstances()} EC2 instances</p>
+      <div class="page-controls">
+        <button class="ctrl-btn ${timeRange==='1h'?'active':''}" onclick="setRange('1h')">1H</button>
+        <button class="ctrl-btn ${timeRange==='6h'?'active':''}" onclick="setRange('6h')">6H</button>
+        <button class="ctrl-btn ${timeRange==='24h'?'active':''}" onclick="setRange('24h')">24H</button>
+        <button class="ctrl-btn ${timeRange==='7d'?'active':''}" onclick="setRange('7d')">7D</button>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card red">
+        <div class="stat-label">Hourly Cloud Spend</div>
+        <div class="stat-value" id="sv-cost">${fmt$(tc)}</div>
+        <div class="stat-meta">
+          <span class="stat-delta delta-up">▲ ${drift.toFixed(1)}%</span>
+          <span>vs baseline</span>
+        </div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Projected Monthly</div>
+        <div class="stat-value">${fmt$(monthly/1000)}K</div>
+        <div class="stat-meta">
+          <span class="stat-delta delta-down">▼ $${Math.round((RECOMMENDATIONS.reduce((a,r)=>a+r.savings,0)/1000))}K</span>
+          <span>potential savings</span>
+        </div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Total RPS</div>
+        <div class="stat-value">${fmtN(totalRps())}</div>
+        <div class="stat-meta">
+          <span class="stat-delta delta-down">▲ 12.4%</span>
+          <span>peak traffic</span>
+        </div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Avg Error Rate</div>
+        <div class="stat-value">${fmtPct(avgErr)}</div>
+        <div class="stat-meta">
+          <span style="color:${avgErr>1?'#ff6b6b':'var(--green)'}">${avgErr>1?'⚠ Above SLO':'✓ Within SLO'}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Service Cost Breakdown</div>
+          <div class="panel-sub">hourly · per-service</div>
+        </div>
+        <table class="svc-table">
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Cost/hr</th>
+              <th>Drift</th>
+              <th>P99</th>
+              <th>RPS</th>
+              <th>CPU</th>
+              <th>Trend</th>
+              <th>CB</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${SERVICES.map(s => {
+              const drift = ((s.cost-s.baseline)/s.baseline*100);
+              const cbClass = s.circuitBreaker==='CLOSED'?'ok':s.circuitBreaker==='OPEN'?'danger':'warn';
+              return `<tr>
+                <td><div class="svc-name"><div class="svc-dot" style="background:${s.color}"></div><span>${s.name}</span></div></td>
+                <td style="color:var(--text)">${fmt$(s.cost)}</td>
+                <td><span style="color:${drift>10?'#ff6b6b':drift>5?'#f1c40f':'#2ecc71'}">${drift>0?'+':''}${drift.toFixed(1)}%</span></td>
+                <td>${fmtMs(s.p99)}</td>
+                <td>${fmtN(s.rps)}</td>
+                <td>
+                  <span class="health-bar"><span class="health-bar-fill" style="width:${s.cpu}%;background:${colorForCpu(s.cpu)}"></span></span>
+                  <span style="font-size:10px;color:var(--text3);margin-left:4px;font-family:'JetBrains Mono',monospace">${Math.round(s.cpu)}%</span>
+                </td>
+                <td>${sparkSVG(costHistory[s.id].slice(-20), s.color)}</td>
+                <td><span class="badge ${cbClass}">${s.circuitBreaker}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Anomaly Feed</div>
+            <div class="panel-sub">${anomalies.length} events</div>
+          </div>
+          <div class="anomaly-feed">
+            ${anomalies.map(a=>`
+            <div class="anomaly-item">
+              <div class="anomaly-icon ${a.type}">${a.icon}</div>
+              <div class="anomaly-msg">
+                <strong>${a.msg}</strong>
+                <span>${a.sub}</span>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Unit Economics</div>
+            <div class="panel-sub">cost per stream hour</div>
+          </div>
+          <div class="ue-grid">
+            <div class="ue-card">
+              <div class="ue-label">$/stream-hr</div>
+              <div class="ue-value" style="color:var(--teal)">$0.0042</div>
+              <div class="ue-sub">benchmark $0.005</div>
+            </div>
+            <div class="ue-card">
+              <div class="ue-label">$/encode-hr</div>
+              <div class="ue-value" style="color:var(--yellow)">$0.38</div>
+              <div class="ue-sub">▲ 8% vs target</div>
+            </div>
+            <div class="ue-card">
+              <div class="ue-label">$/subscriber</div>
+              <div class="ue-value" style="color:var(--green)">$1.84</div>
+              <div class="ue-sub">300M subscribers</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="panel-header">
+        <div class="panel-title">Spend Trend — All Services</div>
+        <div class="panel-sub">last 60 ticks · real-time</div>
+      </div>
+      <div style="position:relative;height:180px;">
+        <canvas id="trendChart" role="img" aria-label="Stacked area chart of hourly cloud spend by service over time"></canvas>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTopology() {
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h1>Service Topology</h1>
+      <p>Live dependency graph · circuit breaker states · request flow</p>
+    </div>
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="panel-header">
+        <div class="panel-title">Circuit Breaker States</div>
+        <div class="panel-sub">hystrix-style resilience</div>
+      </div>
+      <div class="cb-grid">
+        ${SERVICES.map(s=>`
+        <div class="cb-card" style="border-left: 3px solid ${s.color}">
+          <div class="cb-name">${s.name}</div>
+          <div class="cb-state ${s.circuitBreaker==='CLOSED'?'closed':s.circuitBreaker==='OPEN'?'open':'half'}">${s.circuitBreaker}</div>
+          <div class="cb-rate">${fmtN(s.rps)} rps · ${s.err>0?(s.err*100).toFixed(2)+'% err':'no errors'}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Request Propagation</div>
+        <div class="panel-sub">client → edge → microservices</div>
+      </div>
+      <canvas id="topoCanvas" width="800" height="280"></canvas>
+    </div>
+    <div class="panel" style="margin-top:1rem">
+      <div class="panel-header">
+        <div class="panel-title">Cost Attribution by Layer</div>
+        <div class="panel-sub">ingress → compute → storage</div>
+      </div>
+      <div style="position:relative;height:160px">
+        <canvas id="layerChart" role="img" aria-label="Horizontal bar chart of cost by infrastructure layer"></canvas>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderKafka() {
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h1>Event Stream Monitor</h1>
+      <p>Apache Kafka · ${KAFKA_TOPICS.reduce((a,t)=>a+t.partitions,0)} partitions · ${fmtN(KAFKA_TOPICS.reduce((a,t)=>a+t.tps,0))}/s total throughput</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card blue">
+        <div class="stat-label">Total Throughput</div>
+        <div class="stat-value">${fmtN(KAFKA_TOPICS.reduce((a,t)=>a+t.tps,0))}/s</div>
+        <div class="stat-meta"><span style="color:var(--blue)">across ${KAFKA_TOPICS.length} topics</span></div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Max Consumer Lag</div>
+        <div class="stat-value" style="color:${KAFKA_TOPICS.some(t=>t.lag>100)?'#f1c40f':'#2ecc71'}">${Math.round(Math.max(...KAFKA_TOPICS.map(t=>t.lag)))}ms</div>
+        <div class="stat-meta"><span style="color:var(--text3)">search-events · partition 11</span></div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Total Partitions</div>
+        <div class="stat-value">${KAFKA_TOPICS.reduce((a,t)=>a+t.partitions,0)}</div>
+        <div class="stat-meta"><span style="color:var(--text3)">across ${KAFKA_TOPICS.length} topics</span></div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Stream Cost/hr</div>
+        <div class="stat-value">$420</div>
+        <div class="stat-meta"><span style="color:var(--text3)">Kafka + Kinesis</span></div>
+      </div>
+    </div>
+
+    ${KAFKA_TOPICS.map(t => {
+      const lagBad = t.lag > 100;
+      const tpsRatio = t.tps / 1200000;
+      return `
+      <div class="panel" style="margin-bottom:0.75rem">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title mono">${t.name}</div>
+            <div class="panel-sub">${t.partitions} partitions</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:16px;font-family:'JetBrains Mono',monospace;font-weight:400">${fmtN(t.tps)}/s</div>
+            <div style="font-size:11px;color:${lagBad?'#f1c40f':'var(--text3)'};font-family:'JetBrains Mono',monospace">lag: ${Math.round(t.lag)}ms${lagBad?' ⚠':''}</div>
+          </div>
+        </div>
+        <div style="margin-bottom:6px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Throughput</div>
+          <div class="forecast-bar">
+            <div class="forecast-fill" style="width:${Math.min(100,tpsRatio*100).toFixed(0)}%;background:${lagBad?'#f1c40f':t.tps>500000?'#3498db':'#2ecc71'}"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">Consumers: ${SERVICES.filter(s=>s.kafka.includes(t.name)).map(s=>`<span style="color:${s.color}">${s.name}</span>`).join(' · ')}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderOptimize() {
+  const total = RECOMMENDATIONS.reduce((a,r)=>a+r.savings,0);
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h1>Cost Optimizer</h1>
+      <p>ML-detected opportunities · ranked by monthly savings impact</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card green">
+        <div class="stat-label">Total Savings Identified</div>
+        <div class="stat-value">$${(total/1000).toFixed(1)}K</div>
+        <div class="stat-meta"><span>per month</span></div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">High Priority</div>
+        <div class="stat-value">${RECOMMENDATIONS.filter(r=>r.priority==='high').length}</div>
+        <div class="stat-meta"><span>actions</span></div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Medium Priority</div>
+        <div class="stat-value">${RECOMMENDATIONS.filter(r=>r.priority==='med').length}</div>
+        <div class="stat-meta"><span>actions</span></div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Cost Drift Services</div>
+        <div class="stat-value">${SERVICES.filter(s=>((s.cost-s.baseline)/s.baseline)>0.1).length}</div>
+        <div class="stat-meta"><span>&gt;10% over baseline</span></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:1rem">
+      <div class="panel-header">
+        <div class="panel-title">Savings Forecast — 90-Day Impact</div>
+        <div class="panel-sub">if all recommendations implemented</div>
+      </div>
+      <div style="position:relative;height:160px">
+        <canvas id="forecastChart" role="img" aria-label="Bar chart showing monthly savings forecast if recommendations implemented"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Recommendations</div>
+        <div class="panel-sub">sorted by ROI</div>
+      </div>
+      <div class="reco-list">
+        ${RECOMMENDATIONS.map(r=>`
+        <div class="reco-item ${r.priority}">
+          <div style="text-align:right;min-width:60px">
+            <div class="reco-savings">+$${r.savings.toLocaleString()}</div>
+            <div style="font-size:10px;color:var(--text3)">/month</div>
+          </div>
+          <div class="reco-content">
+            <div class="reco-title">${r.title}</div>
+            <div class="reco-desc">${r.desc}</div>
+          </div>
+          <div style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg4);color:var(--text3);height:fit-content;white-space:nowrap;font-family:'JetBrains Mono',monospace">${r.priority.toUpperCase()}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+let trendChartInst = null;
+
+function drawTrendChart() {
+  const el = document.getElementById('trendChart');
+  if(!el) return;
+  if(trendChartInst) { trendChartInst.destroy(); trendChartInst = null; }
+  const labels = Array.from({length:60},(_,i)=>'');
+  labels[0]='60m ago'; labels[29]='30m ago'; labels[59]='now';
+  const top3 = [...SERVICES].sort((a,b)=>b.cost-a.cost).slice(0,5);
+  trendChartInst = new Chart(el, {
+    type:'line',
+    data: {
+      labels,
+      datasets: top3.map(s=>({
+        label: s.name,
+        data: costHistory[s.id],
+        borderColor: s.color,
+        backgroundColor: s.color+'18',
+        borderWidth: 1.5,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color:'rgba(255,255,255,0.04)' }, ticks: { color:'#555', font:{size:10} } },
+        y: { grid: { color:'rgba(255,255,255,0.04)' }, ticks: { color:'#555', font:{size:10}, callback: v=>'$'+Math.round(v) } }
+      },
+      animation: false,
+    }
+  });
+}
+
+function drawLayerChart() {
+  const el = document.getElementById('layerChart');
+  if(!el) return;
+  new Chart(el, {
+    type: 'bar',
+    data: {
+      labels: ['Compute (EC2/Titus)','Storage (S3/Cassandra)','Network (CDN/egress)','Kafka/Kinesis','Misc/Lambda'],
+      datasets: [{
+        data: [38200, 12400, 8800, 3200, 2100],
+        backgroundColor: ['#3498db','#9b59b6','#1abc9c','#e67e22','#666'],
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#555',font:{size:10},callback:v=>'$'+Math.round(v/1000)+'K'} },
+        y: { grid:{display:false}, ticks:{color:'#aaa',font:{size:10}} }
+      },
+      animation: false,
+    }
+  });
+}
+
+function drawForecastChart() {
+  const el = document.getElementById('forecastChart');
+  if(!el) return;
+  new Chart(el, {
+    type:'bar',
+    data:{
+      labels:['Month 1','Month 2','Month 3'],
+      datasets:[
+        { label:'Current spend', data:[projMonthly()/1000, projMonthly()/1000, projMonthly()/1000], backgroundColor:'#444', borderRadius:4 },
+        { label:'Optimized spend', data:[projMonthly()/1000*0.92, projMonthly()/1000*0.86, projMonthly()/1000*0.82], backgroundColor:'#2ecc71', borderRadius:4 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#555',font:{size:10}}},
+        y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#555',font:{size:10},callback:v=>'$'+v.toFixed(0)+'K'}}
+      },
+      animation:false,
+    }
+  });
+}
+
+// ─── TOPOLOGY CANVAS ──────────────────────────────────────────────────────────
+function drawTopology() {
+  const canvas = document.getElementById('topoCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 280;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const W = canvas.width, H = canvas.height;
+
+  const nodes = [
+    { id:'client', label:'Client', x:0.05, y:0.5, color:'#666' },
+    { id:'api-gateway', label:'API Gateway', x:0.22, y:0.5, color:'#E50914' },
+    { id:'playback-svc', label:'playback', x:0.45, y:0.18, color:'#3498db' },
+    { id:'recommendation', label:'recommend', x:0.45, y:0.4, color:'#9b59b6' },
+    { id:'search-svc', label:'search', x:0.45, y:0.62, color:'#e67e22' },
+    { id:'member-svc', label:'member', x:0.45, y:0.82, color:'#1abc9c' },
+    { id:'encoder-svc', label:'encoder', x:0.72, y:0.18, color:'#e74c3c' },
+    { id:'drm-svc', label:'drm', x:0.72, y:0.4, color:'#34495e' },
+    { id:'analytics-svc', label:'analytics', x:0.72, y:0.65, color:'#fd79a8' },
+    { id:'billing-svc', label:'billing', x:0.72, y:0.85, color:'#f1c40f' },
+  ];
+
+  const edges = [
+    ['client','api-gateway'],
+    ['api-gateway','playback-svc'],['api-gateway','recommendation'],
+    ['api-gateway','search-svc'],['api-gateway','member-svc'],
+    ['playback-svc','encoder-svc'],['playback-svc','drm-svc'],
+    ['recommendation','analytics-svc'],['member-svc','billing-svc'],
+    ['search-svc','analytics-svc'],
+  ];
+
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+
+  edges.forEach(([a,b])=>{
+    const na = nodes.find(n=>n.id===a);
+    const nb = nodes.find(n=>n.id===b);
+    if(!na||!nb) return;
+    ctx.beginPath();
+    ctx.moveTo(na.x*W, na.y*H);
+    ctx.lineTo(nb.x*W, nb.y*H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // animated packet
+    const progress = ((tick*2 + edges.indexOf([a,b])*7) % 100) / 100;
+    const px = na.x*W + (nb.x*W - na.x*W)*progress;
+    const py = na.y*H + (nb.y*H - na.y*H)*progress;
+    const svc = SERVICES.find(s=>s.id===a);
+    ctx.beginPath();
+    ctx.arc(px, py, 2.5, 0, Math.PI*2);
+    ctx.fillStyle = svc ? svc.color : '#fff';
+    ctx.fill();
+  });
+
+  nodes.forEach(n=>{
+    const x = n.x*W, y = n.y*H;
+    const svc = SERVICES.find(s=>s.id===n.id);
+    const r = n.id==='client'?16:20;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fillStyle = n.color+'33';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.strokeStyle = n.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if(svc && svc.circuitBreaker==='OPEN') {
+      ctx.beginPath(); ctx.arc(x, y, r+4, 0, Math.PI*2);
+      ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth=1; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.fillStyle = '#ddd';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillText(n.label, x, y+r+12);
+    if(svc) {
+      ctx.fillStyle = colorForCpu(svc.cpu);
+      ctx.fillText(Math.round(svc.cpu)+'%', x, y+4);
+    }
+  });
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const el = document.getElementById('sidebarSvcs');
+  if(!el) return;
+  el.innerHTML = SERVICES.map(s=>{
+    const drift = ((s.cost-s.baseline)/s.baseline*100);
+    const badge = s.circuitBreaker==='OPEN'?'danger':drift>10?'warn':'ok';
+    const badgeText = s.circuitBreaker==='OPEN'?'OPEN':drift>10?`+${drift.toFixed(0)}%`:'OK';
+    return `<div class="sidebar-item" onclick="focusService('${s.id}')">
+      <div class="sidebar-item-left">
+        <div class="svc-dot" style="background:${s.color}"></div>
+        <span>${s.name.replace('-svc','').replace('-','\u2011')}</span>
+      </div>
+      <span class="badge ${badge}">${badgeText}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('nodeCount').textContent = totalInstances();
+}
+
+// ─── RENDER & TICK ────────────────────────────────────────────────────────────
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.sidebar-item').forEach(el=>{
+    if(['overview','topology','kafka','optimize'].some(x=>el.getAttribute('onclick')?.includes(x))) {
+      el.classList.toggle('active', el.getAttribute('onclick')?.includes(v));
+    }
+  });
+  render();
+}
+
+function setRange(r) { timeRange = r; render(); }
+function focusService(id) { }
+
+function render() {
+  const el = document.getElementById('mainContent');
+  if(currentView==='overview') el.innerHTML = renderOverview();
+  else if(currentView==='topology') el.innerHTML = renderTopology();
+  else if(currentView==='kafka') el.innerHTML = renderKafka();
+  else if(currentView==='optimize') el.innerHTML = renderOptimize();
+
+  setTimeout(()=>{
+    if(currentView==='overview') drawTrendChart();
+    if(currentView==='topology') { drawTopology(); drawLayerChart(); }
+    if(currentView==='optimize') drawForecastChart();
+  }, 50);
+}
+
+// ─── LIVE UPDATES ─────────────────────────────────────────────────────────────
+function updateLiveNumbers() {
+  const el = document.getElementById('sv-cost');
+  if(el) el.textContent = fmt$(totalCost());
+}
+
+let topoAnimFrame = null;
+function animateTopo() {
+  if(currentView!=='topology') return;
+  drawTopology();
+  topoAnimFrame = requestAnimationFrame(animateTopo);
+  tick++;
+}
+
+setInterval(()=>{
+  tickData();
+  renderSidebar();
+  if(currentView==='overview') { updateLiveNumbers(); }
+  if(currentView==='topology') { /* RAF handles */ }
+}, 1500);
+
+setInterval(()=>{
+  if(currentView==='overview') { drawTrendChart(); }
+}, 5000);
+
+// RAF topology loop
+setInterval(()=>{
+  if(currentView==='topology') {
+    tick++;
+    drawTopology();
+  }
+},80);
+
+// Clock
+function updateClock() {
+  const el = document.getElementById('navTime');
+  if(el) el.textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
+}
+setInterval(updateClock, 1000);
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+const loadMsgs = [
+  'initializing event streams...',
+  'connecting to kafka brokers...',
+  'loading cost attribution data...',
+  'calibrating anomaly detection...',
+  'ready.'
+];
+let msgIdx = 0;
+const msgEl = document.getElementById('loadMsg');
+const msgInterval = setInterval(()=>{
+  msgIdx++;
+  if(msgIdx < loadMsgs.length && msgEl) msgEl.textContent = loadMsgs[msgIdx];
+}, 360);
+
+setTimeout(()=>{
+  clearInterval(msgInterval);
+  const overlay = document.getElementById('loadOverlay');
+  overlay.style.opacity = '0';
+  setTimeout(()=>{ overlay.style.display='none'; },500);
+  render();
+  renderSidebar();
+  updateClock();
+},1900);
+</script>
+</body>
+</html>
